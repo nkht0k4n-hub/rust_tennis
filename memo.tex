@@ -1,0 +1,136 @@
+% ファイル先頭から\begin{document}までの内容（プレアンブル）については，
+% 基本的に { } の中を書き換えるだけでよい．
+\documentclass[autodetect-engine,dvi=dvipdfmx,ja=standard,
+               a4j,11pt]{bxjsarticle}
+
+%%======== プレアンブル ============================================%%
+% 用紙設定：指示があれば，適切な余白に設定しなおす
+\RequirePackage{geometry}
+\geometry{reset,paperwidth=210truemm,paperheight=297truemm}
+\geometry{hmargin=25truemm,top=20truemm,bottom=25truemm,footskip=10truemm,headheight=0mm}
+%\geometry{showframe} % 本文の"枠"を確認したければ，コメントアウト
+
+% 設定：図の挿入
+% http://www.edu.cs.okayama-u.ac.jp/info/tool_guide/tex.html#graphicx
+\usepackage{graphicx}
+
+% 設定：ソースコードの挿入
+% http://www.edu.cs.okayama-u.ac.jp/info/tool_guide/tex.html#fancyvrb
+\usepackage{fancyvrb}
+\renewcommand{\theFancyVerbLine}{\texttt{\footnotesize{\arabic{FancyVerbLine}:}}}
+
+%%======== レポートタイトル等 ======================================%%
+% ToDo: 提出要領に従って，適切なタイトル・サブタイトルを設定する
+\title{tennis_gameメモ}
+
+
+%%======== 本文 ====================================================%%
+\begin{document}
+% 目次つきの表紙ページにする場合はコメントを外す
+%{\footnotesize \tableofcontents \newpage}
+
+%% 本文は以下に書く．課題に応じて適切な章立てを構成すること．
+%% 章＝\section，節＝\subsection，項＝\subsubsection である．
+
+%--------------------------------------------------------------------%
+\section{概要} \label{sec:abstract}
+
+rustを使用してテニスゲームを作成し,気づいた点や言語の特徴をまとめる.
+%--------------------------------------------------------------------%
+\section{クラスの作成}
+\verb|rust|ではクラスのように構造体を使用する.
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+
+struct Game{
+pub ball: f64,
+pub speed: f64,
+}
+
+impl Game{
+    pub fn new()->Self{
+        Self{ball:0.0, speed: 0.01}
+    }
+
+    pub fn update(&mut self,is_swing: &Mutex<bool>)->bool{
+        self.ball+=self.speed;
+        let mut is_swing=is_swing.lock().unwrap();
+        if *is_swing{
+            self.speed*=-1.0;
+        }
+        *is_swing=false;
+
+        if 0.0<=self.ball&&self.ball<=1.0{
+            return true;
+        }
+        false
+    }
+}
+\end{Verbatim}
+ここで\verb|struct|でクラスのメンバを宣言し,\verb|impl|でメソッドを定義する.
+
+\section{変数の宣言}
+rustでは変数を宣言する際に\verb|let|を使用する.そして\verb|mut|をつけると可変な変数になる.
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+   let mut buf=String::new(); 
+
+\end{Verbatim}
+このように宣言することで\verb|buf|は可変な変数になる.
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+let is_swing:Arc<Mutex<bool>>=Default::default();
+
+\end{Verbatim}
+\subsection{スレッドセーフな変数の宣言}
+
+\verb|Mutex|を使用することで複数のスレッドから同時にアクセスされても安全な変数になる.
+\verb|spawn|などを使用するとき,つまり複数のスレッドで処理を実行するときに
+データの競合が起こる可能性がある.このとき\verb|Mutex|を使用することでデータの競合を防止できる.
+\verb|Arc|は複数のスレッドで同じ変数を共有するために使用する.このように宣言することで\verb|is_swing|は複数のスレッドで共有される変数になる.
+
+デフォルト宣言とし
+て\verb|Default::default()|を使用する
+ことで\verb|is_swing|は\verb|false|で初期化される.
+\verb|new|を使用して書こうとすると長くなってしまう.
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+let is_swing:Arc<Mutex<bool>>=Default::default();
+
+\end{Verbatim}
+
+\subsection{型推論}
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+let mut buf=String::new();
+\end{Verbatim}
+
+において\verb|buf:string|としないのは代入されて型が推論されるためである.
+
+\section{unwrap}
+\verb|unwrap|を使用することで\verb|Result|型の値を取り出している.このとき\verb|Result|型の値が\verb|Err|であった場合はパニックになる.
+
+\section{アスタリスク}
+クローンした変数にアクセスする際に\verb|*|を使用している.これはクローンした変数が参照であるためである.
+しかし,これにはリスクを伴うため,\verb|lock()|や\verb|unwrap()|を使用して安全にアクセスすることが重要である.
+よって複数スレッドでアクセスする必要がある変数は
+\begin{Verbatim}[numbers=left, xleftmargin=10mm, numbersep=6pt,
+                    fontsize=\small, baselinestretch=0.8]
+let is_swing:Arc<Mutex<bool>>=Default::default();
+\end{Verbatim}
+のように\verb|Arc<Mutex<>>|型で宣言することが望ましい.
+
+
+
+
+%--------------------------------------------------------------------%
+% 参考文献
+%   以下は，書き方の例である．実際に，参考にした書籍等を見て書くこと．
+%   本文で引用する際は，\cite{book:algodata}などとすればよい．
+
+
+%--------------------------------------------------------------------%
+%% 本文はここより上に書く（\begin{document}～\end{document}が本文である）
+\end{document}
+
+
